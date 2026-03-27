@@ -96,10 +96,10 @@ export default function App() {
             {error && (
               <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                 <strong>Error:</strong> {error}
-                {error.includes('ANTHROPIC_API_KEY') && (
+                {error.includes('OPENAI_API_KEY') && (
                   <p className="mt-1 text-xs text-red-400/70">
                     Create a <code className="bg-red-900/30 px-1 rounded">.env</code> file in the project root and add your{' '}
-                    <code className="bg-red-900/30 px-1 rounded">ANTHROPIC_API_KEY</code>.
+                    <code className="bg-red-900/30 px-1 rounded">OPENAI_API_KEY</code>.
                   </p>
                 )}
               </div>

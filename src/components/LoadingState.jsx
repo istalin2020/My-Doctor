@@ -56,7 +56,7 @@ export default function LoadingState({ mode }) {
       </div>
 
       <p className="mt-6 text-xs text-slate-600">
-        Powered by Claude — claude-sonnet-4-6
+        Powered by OpenAI — gpt-4o
       </p>
     </div>
   )

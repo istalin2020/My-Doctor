@@ -3,13 +3,13 @@ const cors = require('cors')
 const path = require('path')
 require('dotenv').config()
 
-const Anthropic = require('@anthropic-ai/sdk')
+const OpenAI = require('openai')
 
 const app = express()
 app.use(cors())
 app.use(express.json({ limit: '2mb' }))
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 // ─── Prompt builders ────────────────────────────────────────────────────────
 
@@ -127,8 +127,8 @@ Perform a complete Sovereign Physician consultation on this patient. Apply your 
 app.post('/api/analyze', async (req, res) => {
   const { patientData, labValues, mode = 'standard' } = req.body
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OPENAI_API_KEY is not configured on the server.' })
   }
 
   res.setHeader('Content-Type', 'text/event-stream')
@@ -140,26 +140,25 @@ app.post('/api/analyze', async (req, res) => {
     const systemPrompt = buildSystemPrompt(mode)
     const userMessage = buildUserMessage(patientData, labValues)
 
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
+    const stream = await client.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      stream: true,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
     })
 
-    stream.on('text', (text) => {
-      res.write(`data: ${JSON.stringify({ text })}\n\n`)
-    })
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || ''
+      if (text) {
+        res.write(`data: ${JSON.stringify({ text })}\n\n`)
+      }
+    }
 
-    stream.on('finalMessage', () => {
-      res.write('data: [DONE]\n\n')
-      res.end()
-    })
-
-    stream.on('error', (err) => {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`)
-      res.end()
-    })
+    res.write('data: [DONE]\n\n')
+    res.end()
   } catch (err) {
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`)
     res.end()
@@ -178,5 +177,5 @@ if (process.env.NODE_ENV === 'production') {
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`\n🏥 My Doctor server running on http://localhost:${PORT}`)
-  console.log(`   API key configured: ${process.env.ANTHROPIC_API_KEY ? '✅' : '❌ (set ANTHROPIC_API_KEY in .env)'}`)
+  console.log(`   API key configured: ${process.env.OPENAI_API_KEY ? '✅' : '❌ (set OPENAI_API_KEY in .env)'}`)
 })

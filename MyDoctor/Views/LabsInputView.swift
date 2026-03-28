@@ -44,7 +44,7 @@ struct LabsInputView: View {
     private var tipBanner: some View {
         HStack(alignment: .top, spacing: 10) {
             Text("💡")
-            Text("Enter values from your most recent report. Blank fields are ignored. The Sovereign Physician evaluates against **optimal** ranges, not just "normal" ranges.")
+            Text("Enter values from your most recent report. Blank fields are ignored. The Sovereign Physician evaluates against **optimal** ranges, not just \"normal\" ranges.")
                 .font(.caption)
                 .foregroundColor(.init(white: 0.5))
         }

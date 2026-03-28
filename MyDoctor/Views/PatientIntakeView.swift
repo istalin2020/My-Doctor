@@ -6,8 +6,8 @@ private let regions     = [
     "US — Standard American Diet", "US — Health-Conscious",
     "Mediterranean", "Other / Mixed",
 ]
-private let smokingOpts = ["Never", "Former (quit)", "Occasional", "Daily smoker"]
-private let alcoholOpts = ["None", "Occasional (social)", "Moderate (1–2/day)", "Heavy (3+/day)"]
+private let smokingOpts  = ["Never", "Former (quit)", "Occasional", "Daily smoker"]
+private let alcoholOpts  = ["None", "Occasional (social)", "Moderate (1–2/day)", "Heavy (3+/day)"]
 private let activityOpts = [
     "Sedentary (desk job, no exercise)",
     "Light (1–2 days/week)",
@@ -52,7 +52,7 @@ struct PatientIntakeView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Sections
+    // MARK: - Profile
 
     private var profileSection: some View {
         Section {
@@ -99,6 +99,8 @@ struct PatientIntakeView: View {
         } header: { sectionHeader("👤 Patient Profile") }
     }
 
+    // MARK: - Complaints
+
     private var complaintsSection: some View {
         Section {
             TextEditor(text: $vm.patientData.chiefComplaints)
@@ -106,49 +108,63 @@ struct PatientIntakeView: View {
                 .foregroundColor(.white)
         } header: { sectionHeader("🎯 Chief Complaints & Goals") }
         footer: {
-            Text("Describe your symptoms, energy issues, and performance goals")
+            Text("Describe symptoms, energy issues, and performance goals")
                 .font(.caption)
                 .foregroundColor(.init(white: 0.4))
         }
     }
 
+    // MARK: - Conditions
+    // FIX: Each chip uses .buttonStyle(.plain) so SwiftUI Form does NOT
+    // forward a single tap to every button in the same list row.
+
     private var conditionsSection: some View {
         Section {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(allConditions, id: \.self) { condition in
-                    let selected = vm.patientData.conditions.contains(condition)
-                    Button {
-                        if selected {
-                            vm.patientData.conditions.removeAll { $0 == condition }
-                        } else {
-                            vm.patientData.conditions.append(condition)
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(selected ? .gold : .init(white: 0.35))
-                                .font(.system(size: 13))
-                            Text(condition)
-                                .font(.caption)
-                                .foregroundColor(selected ? .gold : .init(white: 0.55))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 8)
-                        .background(selected ? Color.gold.opacity(0.1) : Color.navyCard)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(selected ? Color.gold.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 1)
-                        )
-                        .cornerRadius(8)
-                    }
+                    conditionChip(condition)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         } header: { sectionHeader("🏥 Active Conditions") }
     }
+
+    private func conditionChip(_ condition: String) -> some View {
+        let selected = vm.patientData.conditions.contains(condition)
+        return Button {
+            if selected {
+                vm.patientData.conditions.removeAll { $0 == condition }
+            } else {
+                vm.patientData.conditions.append(condition)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(selected ? .gold : .init(white: 0.35))
+                    .font(.system(size: 13))
+                Text(condition)
+                    .font(.caption)
+                    .foregroundColor(selected ? .gold : .init(white: 0.55))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .background(selected ? Color.gold.opacity(0.12) : Color.navyCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selected ? Color.gold.opacity(0.45) : Color.white.opacity(0.07), lineWidth: 1)
+            )
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain) // ← THE FIX: prevents Form from mass-selecting all buttons
+    }
+
+    // MARK: - Medications
 
     private var medicationsSection: some View {
         Section {
@@ -170,6 +186,8 @@ struct PatientIntakeView: View {
                 .foregroundColor(.init(white: 0.4))
         }
     }
+
+    // MARK: - Lifestyle
 
     private var lifestyleSection: some View {
         Section {
@@ -204,12 +222,10 @@ struct PatientIntakeView: View {
     }
 
     private func formLabel(_ text: String) -> some View {
-        Text(text)
-            .foregroundColor(.init(white: 0.7))
+        Text(text).foregroundColor(.init(white: 0.7))
     }
 }
 
 #Preview {
-    PatientIntakeView()
-        .environmentObject(ConsultationViewModel())
+    PatientIntakeView().environmentObject(ConsultationViewModel())
 }

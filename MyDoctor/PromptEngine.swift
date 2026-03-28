@@ -2,7 +2,7 @@ import Foundation
 
 enum PromptEngine {
 
-    // MARK: - System Prompt
+    // MARK: - System Prompt (Main Consultation)
 
     static func systemPrompt(mode: ConsultationMode) -> String {
         let base = """
@@ -71,7 +71,7 @@ enum PromptEngine {
         }
     }
 
-    // MARK: - User Message
+    // MARK: - User Message (Main Consultation)
 
     static func userMessage(patientData: PatientData, labValues: [String: String]) -> String {
         let labLines = labValues
@@ -113,6 +113,196 @@ enum PromptEngine {
 
         ═══════════════════════════════════════
         Perform a complete Sovereign Physician consultation on this patient. Apply your optimal-range framework and regional dietary intelligence. Be comprehensive, specific, and prescriptive.
+        """
+    }
+
+    // MARK: - Re-consultation
+
+    static func reconsultationMessage(
+        patientData: PatientData,
+        labValues: [String: String],
+        previousReport: String
+    ) -> String {
+        let labLines = labValues
+            .filter { !$0.value.isEmpty }
+            .map { "• \($0.key): \($0.value)" }
+            .sorted()
+            .joined(separator: "\n")
+
+        return """
+        RE-CONSULTATION REQUEST
+        ═══════════════════════════════════════
+
+        PATIENT: \(patientData.name.isEmpty ? "Anonymous" : patientData.name), \(patientData.age) yrs, \(patientData.gender)
+        Region: \(patientData.region.isEmpty ? "Not specified" : patientData.region)
+
+        CURRENT LABS
+        \(labLines.isEmpty ? "No lab values provided" : labLines)
+
+        CONDITIONS: \(patientData.conditions.isEmpty ? "None" : patientData.conditions.joined(separator: ", "))
+
+        PREVIOUS BLUEPRINT SUMMARY
+        \(String(previousReport.prefix(1500)))
+
+        ═══════════════════════════════════════
+        This is a follow-up re-consultation. Review the previous blueprint and provide:
+        1. An updated assessment of what has likely changed or needs re-prioritization.
+        2. New or refined action items the patient should focus on NOW.
+        3. Any protocol adjustments based on the existing data.
+        Be direct and specific. Do not repeat the full biomarker breakdown — focus on updated guidance and next steps.
+        Use these section headers:
+
+        ## 🔄 Re-consultation Assessment
+
+        ## 🎯 Updated Priority Actions
+
+        ## 📈 Protocol Refinements
+
+        ## ⚠️ Medical Disclaimer
+        """
+    }
+
+    // MARK: - Meal & Fitness Plan System Prompt
+
+    static func mealFitnessSystemPrompt() -> String {
+        return """
+        You are "The Sovereign Physician," an elite concierge medicine AI specializing in evidence-based, personalized nutrition and fitness programming. You integrate the latest research in sports science, metabolic nutrition, and longevity medicine to create precise, actionable plans.
+
+        Your meal plans are:
+        • Culturally adapted to the patient's regional dietary background
+        • Calibrated to the patient's biomarkers and health conditions
+        • Based on optimal macronutrient ratios for their specific metabolic profile
+        • Structured with specific meal timings, portions, and food choices
+
+        Your fitness plans include both GYM and HOME variants. They are:
+        • Periodized (progressive overload)
+        • Adapted to the patient's activity level and health conditions
+        • Specific about sets, reps, duration, and rest periods
+        • Rooted in evidence: Zone 2 cardio for metabolic health, resistance training for hormonal optimization, HIIT for VO2max
+
+        Maintain a direct, authoritative tone. Be specific — name actual foods, exercises, and quantities.
+        """
+    }
+
+    // MARK: - Meal & Fitness Plan Message
+
+    static func mealFitnessMessage(
+        patientData: PatientData,
+        labValues: [String: String],
+        report: String
+    ) -> String {
+        let labLines = labValues
+            .filter { !$0.value.isEmpty }
+            .map { "• \($0.key): \($0.value)" }
+            .sorted()
+            .joined(separator: "\n")
+
+        return """
+        MEAL & FITNESS PLAN REQUEST
+        ═══════════════════════════════════════
+
+        PATIENT PROFILE
+        Name: \(patientData.name.isEmpty ? "Anonymous" : patientData.name)
+        Age: \(patientData.age.isEmpty ? "Not provided" : patientData.age) years
+        Gender: \(patientData.gender.isEmpty ? "Not specified" : patientData.gender)
+        Region / Dietary Background: \(patientData.region.isEmpty ? "Not specified" : patientData.region)
+        Height: \(patientData.height.isEmpty ? "Not provided" : patientData.height + " cm")
+        Weight: \(patientData.weight.isEmpty ? "Not provided" : patientData.weight + " kg")
+        BMI: \(patientData.bmi)
+        Active Conditions: \(patientData.conditions.isEmpty ? "None" : patientData.conditions.joined(separator: ", "))
+        Activity Level: \(patientData.activityLevel.isEmpty ? "Not specified" : patientData.activityLevel)
+        Sleep: \(patientData.sleepHours.isEmpty ? "Not specified" : patientData.sleepHours + " hrs/night")
+
+        KEY BIOMARKERS
+        \(labLines.isEmpty ? "None provided" : labLines)
+
+        HEALTH BLUEPRINT SUMMARY (for context)
+        \(report.isEmpty ? "Not yet generated" : String(report.prefix(1000)))
+
+        ═══════════════════════════════════════
+        Create a complete, personalized 7-day Meal & Fitness Plan. Use EXACTLY these section headers:
+
+        ## 🍽️ Meal Plan Strategy
+
+        ## 📅 7-Day Meal Plan
+
+        ## 🏋️ Gym Workout Plan (4 days/week)
+
+        ## 🏠 Home Workout Plan (4 days/week)
+
+        ## 💤 Recovery & Sleep Protocol
+
+        ## 📊 Key Nutrition Targets
+
+        For the meal plan: include specific foods, quantities (grams/cups), meal timings, and calorie estimates per meal. Adapt culturally to their region. For workouts: include exercise name, sets × reps/duration, rest periods, and the physiological rationale.
+        """
+    }
+
+    // MARK: - Daily Consultation System Prompt
+
+    static func dailyConsultationSystemPrompt() -> String {
+        return """
+        You are "The Sovereign Physician," an elite AI health coach providing daily accountability and guidance. Your role is to analyze the patient's daily food, hydration, fitness, and sleep data against their personalized goals and provide a concise, actionable daily consultation.
+
+        Be direct and motivating. Acknowledge wins specifically. Call out shortfalls without being harsh. Give one or two precise corrective actions for tomorrow. Keep the response focused and practical — this is a daily check-in, not a full consultation.
+        """
+    }
+
+    // MARK: - Daily Consultation Message
+
+    static func dailyConsultationMessage(
+        todayInput: TodayInput,
+        dailyGoals: DailyGoals,
+        patientData: PatientData
+    ) -> String {
+        let meals = [
+            ("Breakfast", todayInput.breakfast),
+            ("Lunch",     todayInput.lunch),
+            ("Dinner",    todayInput.dinner),
+            ("Snacks",    todayInput.snacks),
+        ]
+        let mealLines = meals
+            .filter { !$0.1.description.isEmpty || !$0.1.calories.isEmpty }
+            .map { "• \($0.0): \($0.1.description.isEmpty ? "(no description)" : $0.1.description) — \($0.1.calories.isEmpty ? "?" : $0.1.calories) kcal" }
+            .joined(separator: "\n")
+
+        let calPercent = dailyGoals.calorieGoal > 0
+            ? Int(Double(todayInput.totalCalories) / Double(dailyGoals.calorieGoal) * 100)
+            : 0
+        let waterPercent = dailyGoals.waterGoal > 0
+            ? Int(Double(todayInput.waterGlasses) / Double(dailyGoals.waterGoal) * 100)
+            : 0
+
+        return """
+        DAILY CHECK-IN — \(todayInput.date.isEmpty ? "Today" : todayInput.date)
+        ═══════════════════════════════════════
+
+        PATIENT: \(patientData.name.isEmpty ? "Patient" : patientData.name)
+        Conditions: \(patientData.conditions.isEmpty ? "None" : patientData.conditions.joined(separator: ", "))
+
+        TODAY'S NUTRITION
+        \(mealLines.isEmpty ? "No meals logged" : mealLines)
+        Total Calories: \(todayInput.totalCalories) kcal / Goal: \(dailyGoals.calorieGoal) kcal (\(calPercent)% of goal)
+
+        HYDRATION
+        Water: \(todayInput.waterGlasses) glasses / Goal: \(dailyGoals.waterGoal) glasses (\(waterPercent)%)
+
+        FITNESS
+        Workout: \(todayInput.workoutMinutes) min / Goal: \(dailyGoals.workoutGoal) min
+        Walking: \(todayInput.walkingMinutes) min
+        Steps: \(todayInput.stepsCount) / Goal: \(dailyGoals.stepsGoal)
+        Sleep last night: \(todayInput.sleepHours > 0 ? String(format: "%.1f", todayInput.sleepHours) : "not logged") hrs / Goal: \(dailyGoals.sleepGoal) hrs
+
+        ═══════════════════════════════════════
+        Provide a concise daily consultation. Use these section headers:
+
+        ## 📊 Today's Score
+
+        ## ✅ What You Did Right
+
+        ## ⚡ What Needs Fixing Tomorrow
+
+        ## 💬 Physician's Note
         """
     }
 }

@@ -2,9 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var vm: ConsultationViewModel
-    @State private var showPatient  = false
-    @State private var showLabs     = false
-    @State private var showSettings = false
+    @State private var showPatient    = false
+    @State private var showLabs       = false
+    @State private var showSettings   = false
+    @State private var showTodayInput = false
 
     var body: some View {
         NavigationStack {
@@ -14,8 +15,12 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         heroHeader
-                        ModeSelectorView()
+                        todayInputCard
                         dataCards
+                        ModeSelectorView()
+                        if !vm.report.isEmpty {
+                            viewBlueprintCard
+                        }
                         analyzeButton
                         disclaimer
                     }
@@ -32,9 +37,10 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showPatient)  { PatientIntakeView() }
-            .sheet(isPresented: $showLabs)     { LabsInputView() }
-            .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showPatient)    { PatientIntakeView() }
+            .sheet(isPresented: $showLabs)       { LabsInputView() }
+            .sheet(isPresented: $showSettings)   { SettingsView() }
+            .sheet(isPresented: $showTodayInput) { TodayInputView() }
             .navigationDestination(isPresented: $vm.showReport) {
                 AnalysisView()
             }
@@ -42,11 +48,10 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Subviews
+    // MARK: - Hero Header
 
     private var heroHeader: some View {
         VStack(spacing: 8) {
-            // Badge
             HStack(spacing: 6) {
                 Circle().fill(Color.gold).frame(width: 6, height: 6)
                 Text("Elite Concierge Medicine AI")
@@ -79,25 +84,109 @@ struct ContentView: View {
         .padding(.top, 12)
     }
 
+    // MARK: - Today's Input Card
+
+    private var todayInputCard: some View {
+        Button { showTodayInput = true } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(red: 0.1, green: 0.4, blue: 0.3).opacity(0.3))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "fork.knife.circle.fill")
+                        .foregroundColor(Color(red: 0.2, green: 0.85, blue: 0.6))
+                        .font(.system(size: 24))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Today's Input")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                    Text(vm.todayInput.hasAnyData
+                         ? "\(vm.todayInput.totalCalories) kcal · \(vm.todayInput.waterGlasses) glasses · \(vm.todayInput.workoutMinutes) min workout"
+                         : "Log meals, water, and fitness for today")
+                        .font(.caption)
+                        .foregroundColor(.init(white: 0.45))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(Color(red: 0.2, green: 0.85, blue: 0.6))
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(14)
+            .background(Color.navyCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color(red: 0.2, green: 0.85, blue: 0.6).opacity(0.35), lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Patient & Lab Cards
+
     private var dataCards: some View {
         VStack(spacing: 12) {
-            // Patient profile card
             cardButton(
                 title: "Patient Profile",
-                subtitle: vm.patientData.name.isEmpty ? "Age, gender, medical history, lifestyle" : "\(vm.patientData.name), \(vm.patientData.age) yrs — \(vm.patientData.gender)",
+                subtitle: vm.patientData.name.isEmpty
+                    ? "Age, gender, medical history, lifestyle"
+                    : "\(vm.patientData.name), \(vm.patientData.age) yrs — \(vm.patientData.gender)",
                 icon: "person.fill",
                 isFilled: !vm.patientData.age.isEmpty
             ) { showPatient = true }
 
-            // Lab values card
             cardButton(
                 title: "Lab Report",
-                subtitle: vm.filledLabCount == 0 ? "Enter your most recent biomarker values" : "\(vm.filledLabCount) biomarker\(vm.filledLabCount == 1 ? "" : "s") entered",
+                subtitle: vm.filledLabCount == 0
+                    ? "Enter your most recent biomarker values"
+                    : "\(vm.filledLabCount) biomarker\(vm.filledLabCount == 1 ? "" : "s") entered",
                 icon: "cross.vial.fill",
                 isFilled: vm.filledLabCount > 0
             ) { showLabs = true }
         }
     }
+
+    // MARK: - View Blueprint Card (shown when report exists)
+
+    private var viewBlueprintCard: some View {
+        Button { vm.showReport = true } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.gold.opacity(0.2))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "doc.richtext.fill")
+                        .foregroundColor(.gold)
+                        .font(.system(size: 22))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Health Blueprint")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                    Text("View your elite health report, re-consultation & meal plan")
+                        .font(.caption)
+                        .foregroundColor(.init(white: 0.45))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gold)
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(14)
+            .background(Color.navyCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.gold.opacity(0.5), lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Card Button Helper
 
     private func cardButton(
         title: String,
@@ -116,7 +205,6 @@ struct ContentView: View {
                         .foregroundColor(isFilled ? .gold : .init(white: 0.45))
                         .font(.system(size: 18))
                 }
-
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
@@ -126,9 +214,7 @@ struct ContentView: View {
                         .foregroundColor(.init(white: 0.45))
                         .lineLimit(1)
                 }
-
                 Spacer()
-
                 Image(systemName: isFilled ? "checkmark.circle.fill" : "chevron.right")
                     .foregroundColor(isFilled ? .gold : .init(white: 0.3))
                     .font(.system(size: isFilled ? 18 : 14))
@@ -143,6 +229,8 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Analyze Button
+
     private var analyzeButton: some View {
         VStack(spacing: 10) {
             Button {
@@ -155,17 +243,21 @@ struct ContentView: View {
                             .tint(Color.navyDark)
                             .scaleEffect(0.8)
                     }
-                    Text(vm.isStreaming ? "Analyzing…" : "Generate Elite Health Blueprint")
+                    Text(vm.isStreaming ? "Analyzing…"
+                         : vm.report.isEmpty ? "Generate Elite Health Blueprint"
+                         : "Re-generate Blueprint")
                         .font(.headline)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(
                     vm.hasMinimalData
-                        ? LinearGradient(colors: [Color(red: 0.66, green: 0.51, blue: 0.11), .gold, .goldLight],
-                                         startPoint: .leading, endPoint: .trailing)
-                        : LinearGradient(colors: [Color.white.opacity(0.1), Color.white.opacity(0.1)],
-                                         startPoint: .leading, endPoint: .trailing)
+                        ? LinearGradient(
+                            colors: [Color(red: 0.66, green: 0.51, blue: 0.11), .gold, .goldLight],
+                            startPoint: .leading, endPoint: .trailing)
+                        : LinearGradient(
+                            colors: [Color.white.opacity(0.1), Color.white.opacity(0.1)],
+                            startPoint: .leading, endPoint: .trailing)
                 )
                 .cornerRadius(14)
                 .foregroundColor(vm.hasMinimalData ? Color.navyDark : .init(white: 0.4))
@@ -180,6 +272,8 @@ struct ContentView: View {
         }
         .padding(.top, 4)
     }
+
+    // MARK: - Disclaimer
 
     private var disclaimer: some View {
         Text("⚠️ This AI analysis is for optimization guidance only. It does not replace emergency in-person medical care.")

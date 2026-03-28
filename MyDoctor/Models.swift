@@ -57,7 +57,6 @@ enum ConsultationMode: String, CaseIterable, Identifiable, Codable {
 }
 
 // MARK: - Patient Data
-// Codable so it can be persisted to UserDefaults across restarts and builds.
 
 struct PatientData: Codable {
     var name:            String = ""
@@ -76,11 +75,54 @@ struct PatientData: Codable {
     var sleepHours:      String = ""
     var activityLevel:   String = ""
 
-    // Computed — not stored, so excluded from Codable automatically.
     var bmi: String {
         guard let h = Double(height), let w = Double(weight), h > 0 else { return "N/A" }
         return String(format: "%.1f", w / ((h / 100) * (h / 100)))
     }
+}
+
+// MARK: - Meal Entry
+
+struct MealEntry: Codable {
+    var description: String = ""
+    var calories:    String = ""
+}
+
+// MARK: - Today's Input
+
+struct TodayInput: Codable {
+    var date:           String    = ""
+    var breakfast:      MealEntry = MealEntry()
+    var lunch:          MealEntry = MealEntry()
+    var dinner:         MealEntry = MealEntry()
+    var snacks:         MealEntry = MealEntry()
+    var waterGlasses:   Int       = 0
+    var workoutMinutes: Int       = 0
+    var walkingMinutes: Int       = 0
+    var stepsCount:     Int       = 0
+    var sleepHours:     Double    = 0
+
+    var totalCalories: Int {
+        [breakfast, lunch, dinner, snacks]
+            .compactMap { Int($0.calories) }
+            .reduce(0, +)
+    }
+
+    var hasAnyData: Bool {
+        breakfast.calories != "" || lunch.calories != "" ||
+        dinner.calories != "" || snacks.calories != "" ||
+        waterGlasses > 0 || workoutMinutes > 0 || stepsCount > 0
+    }
+}
+
+// MARK: - Daily Goals
+
+struct DailyGoals {
+    let calorieGoal:  Int
+    let waterGoal:    Int    // glasses
+    let workoutGoal:  Int    // minutes
+    let stepsGoal:    Int
+    let sleepGoal:    Double // hours
 }
 
 // MARK: - Lab Input Models
@@ -103,9 +145,14 @@ struct LabField: Identifiable {
 // MARK: - Persistence Keys
 
 private enum PersistenceKey {
-    static let patientData = "sp_patient_data_v1"
-    static let labValues   = "sp_lab_values_v1"
-    static let mode        = "sp_mode_v1"
+    static let patientData      = "sp_patient_data_v1"
+    static let labValues        = "sp_lab_values_v1"
+    static let mode             = "sp_mode_v1"
+    static let report           = "sp_report_v1"
+    static let reconsultation   = "sp_reconsultation_v1"
+    static let mealFitnessPlan  = "sp_meal_fitness_plan_v1"
+    static let todayInput       = "sp_today_input_v1"
+    static let dailyConsultation = "sp_daily_consultation_v1"
 }
 
 // MARK: - View Model
@@ -114,9 +161,6 @@ private enum PersistenceKey {
 final class ConsultationViewModel: ObservableObject {
 
     // ── Persisted state ───────────────────────────────────────────────────────
-    // didSet hooks call scheduleSave() so any mutation — whether from a text
-    // field, a picker, a bulk lab-import, or a reset — is automatically
-    // written to UserDefaults within 0.4 s of the last change.
 
     @Published var patientData: PatientData = PatientData() {
         didSet { scheduleSave() }
@@ -130,11 +174,33 @@ final class ConsultationViewModel: ObservableObject {
         didSet { scheduleSave() }
     }
 
+    @Published var report: String = "" {
+        didSet { scheduleSave() }
+    }
+
+    @Published var reconsultation: String = "" {
+        didSet { scheduleSave() }
+    }
+
+    @Published var mealFitnessPlan: String = "" {
+        didSet { scheduleSave() }
+    }
+
+    @Published var todayInput: TodayInput = TodayInput() {
+        didSet { scheduleSave() }
+    }
+
+    @Published var dailyConsultation: String = "" {
+        didSet { scheduleSave() }
+    }
+
     // ── Transient state (not persisted) ──────────────────────────────────────
-    @Published var report:      String = ""
-    @Published var isStreaming: Bool   = false
-    @Published var error:       String?
-    @Published var showReport:  Bool   = false
+    @Published var isStreaming:          Bool   = false
+    @Published var isReconsulting:       Bool   = false
+    @Published var isGeneratingPlan:     Bool   = false
+    @Published var isCheckingDaily:      Bool   = false
+    @Published var error:                String?
+    @Published var showReport:           Bool   = false
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -153,14 +219,53 @@ final class ConsultationViewModel: ObservableObject {
         labValues.values.filter { !$0.isEmpty }.count
     }
 
+    /// Mifflin-St Jeor BMR → estimated TDEE plus lifestyle-based goals.
+    var dailyGoals: DailyGoals {
+        let age    = Double(patientData.age)    ?? 30
+        let weight = Double(patientData.weight) ?? 70
+        let height = Double(patientData.height) ?? 170
+        let gender = patientData.gender.lowercased()
+        let isMale = gender.contains("male") || gender == "m"
+
+        // Mifflin-St Jeor BMR
+        let bmr: Double = isMale
+            ? (10 * weight + 6.25 * height - 5 * age + 5)
+            : (10 * weight + 6.25 * height - 5 * age - 161)
+
+        let activity = patientData.activityLevel.lowercased()
+        let factor: Double
+        if      activity.contains("sedentary") { factor = 1.2   }
+        else if activity.contains("light")     { factor = 1.375 }
+        else if activity.contains("moderate")  { factor = 1.55  }
+        else if activity.contains("active") || activity.contains("high") { factor = 1.725 }
+        else                                   { factor = 1.4   }
+
+        let tdee = max(Int(bmr * factor), 1400)
+
+        let hasMetabolicCondition = patientData.conditions.contains(where: {
+            let c = $0.lowercased()
+            return c.contains("diabetes") || c.contains("obesity") || c.contains("hypertension")
+        })
+
+        return DailyGoals(
+            calorieGoal:  tdee,
+            waterGoal:    8,
+            workoutGoal:  hasMetabolicCondition ? 45 : 30,
+            stepsGoal:    8000,
+            sleepGoal:    7.5
+        )
+    }
+
     // MARK: - Analysis
 
     func analyze() async {
         guard !isStreaming else { return }
-        error      = nil
-        report     = ""
-        showReport = true
-        isStreaming = true
+        error           = nil
+        report          = ""
+        reconsultation  = ""
+        mealFitnessPlan = ""
+        showReport      = true
+        isStreaming      = true
 
         let system = PromptEngine.systemPrompt(mode: mode)
         let user   = PromptEngine.userMessage(patientData: patientData, labValues: labValues)
@@ -177,21 +282,85 @@ final class ConsultationViewModel: ObservableObject {
         isStreaming = false
     }
 
+    func generateReconsultation() async {
+        guard !isReconsulting, !report.isEmpty else { return }
+        isReconsulting = true
+        reconsultation = ""
+
+        let system = PromptEngine.systemPrompt(mode: mode)
+        let user   = PromptEngine.reconsultationMessage(
+            patientData: patientData,
+            labValues: labValues,
+            previousReport: report
+        )
+
+        do {
+            for try await token in OpenAIService.stream(system: system, user: user) {
+                reconsultation += token
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        isReconsulting = false
+    }
+
+    func generateMealFitnessPlan() async {
+        guard !isGeneratingPlan else { return }
+        isGeneratingPlan = true
+        mealFitnessPlan  = ""
+
+        let system = PromptEngine.mealFitnessSystemPrompt()
+        let user   = PromptEngine.mealFitnessMessage(
+            patientData: patientData,
+            labValues: labValues,
+            report: report
+        )
+
+        do {
+            for try await token in OpenAIService.stream(system: system, user: user) {
+                mealFitnessPlan += token
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        isGeneratingPlan = false
+    }
+
+    func generateDailyConsultation() async {
+        guard !isCheckingDaily else { return }
+        isCheckingDaily   = true
+        dailyConsultation = ""
+
+        let system = PromptEngine.dailyConsultationSystemPrompt()
+        let user   = PromptEngine.dailyConsultationMessage(
+            todayInput: todayInput,
+            dailyGoals: dailyGoals,
+            patientData: patientData
+        )
+
+        do {
+            for try await token in OpenAIService.stream(system: system, user: user) {
+                dailyConsultation += token
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        isCheckingDaily = false
+    }
+
     func reset() {
-        report      = ""
         error       = nil
         isStreaming  = false
         showReport   = false
-        // Note: patientData, labValues, and mode are intentionally NOT cleared
-        // here — the user's entered data must survive a reset.
+        // report, reconsultation, mealFitnessPlan, patientData, labValues, mode are NOT cleared
     }
 
     // MARK: - Persistence
 
-    // Debounce timer: we commit at most once per 0.4 s so rapid keystrokes
-    // (e.g. typing in a lab field) don't flood UserDefaults.
     private var saveTask: DispatchWorkItem?
-    // Guard that prevents a pointless save() call during the initial loadAll().
     private var isLoadingData = false
 
     private func scheduleSave() {
@@ -202,8 +371,6 @@ final class ConsultationViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: task)
     }
 
-    /// Force an immediate save — called when the app moves to the background
-    /// so in-flight debounced saves are not lost.
     func saveImmediately() {
         saveTask?.cancel()
         commitSave()
@@ -217,7 +384,14 @@ final class ConsultationViewModel: ObservableObject {
         if let data = try? encoder.encode(labValues) {
             UserDefaults.standard.set(data, forKey: PersistenceKey.labValues)
         }
-        UserDefaults.standard.set(mode.rawValue, forKey: PersistenceKey.mode)
+        if let data = try? encoder.encode(todayInput) {
+            UserDefaults.standard.set(data, forKey: PersistenceKey.todayInput)
+        }
+        UserDefaults.standard.set(mode.rawValue,         forKey: PersistenceKey.mode)
+        UserDefaults.standard.set(report,                forKey: PersistenceKey.report)
+        UserDefaults.standard.set(reconsultation,        forKey: PersistenceKey.reconsultation)
+        UserDefaults.standard.set(mealFitnessPlan,       forKey: PersistenceKey.mealFitnessPlan)
+        UserDefaults.standard.set(dailyConsultation,     forKey: PersistenceKey.dailyConsultation)
     }
 
     private func loadAll() {
@@ -226,19 +400,33 @@ final class ConsultationViewModel: ObservableObject {
 
         let decoder = JSONDecoder()
 
-        if let raw  = UserDefaults.standard.data(forKey: PersistenceKey.patientData),
+        if let raw     = UserDefaults.standard.data(forKey: PersistenceKey.patientData),
            let decoded = try? decoder.decode(PatientData.self, from: raw) {
             patientData = decoded
         }
-
-        if let raw  = UserDefaults.standard.data(forKey: PersistenceKey.labValues),
+        if let raw     = UserDefaults.standard.data(forKey: PersistenceKey.labValues),
            let decoded = try? decoder.decode([String: String].self, from: raw) {
             labValues = decoded
         }
-
         if let raw     = UserDefaults.standard.string(forKey: PersistenceKey.mode),
            let decoded = ConsultationMode(rawValue: raw) {
             mode = decoded
+        }
+        if let raw = UserDefaults.standard.string(forKey: PersistenceKey.report) {
+            report = raw
+        }
+        if let raw = UserDefaults.standard.string(forKey: PersistenceKey.reconsultation) {
+            reconsultation = raw
+        }
+        if let raw = UserDefaults.standard.string(forKey: PersistenceKey.mealFitnessPlan) {
+            mealFitnessPlan = raw
+        }
+        if let raw = UserDefaults.standard.string(forKey: PersistenceKey.dailyConsultation) {
+            dailyConsultation = raw
+        }
+        if let raw     = UserDefaults.standard.data(forKey: PersistenceKey.todayInput),
+           let decoded = try? decoder.decode(TodayInput.self, from: raw) {
+            todayInput = decoded
         }
     }
 

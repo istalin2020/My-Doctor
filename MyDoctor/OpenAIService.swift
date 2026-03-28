@@ -10,7 +10,7 @@ enum OpenAIService {
         set { UserDefaults.standard.set(newValue, forKey: "openai_api_key") }
     }
 
-    // MARK: - Streaming Chat (Sovereign Physician analysis)
+    // MARK: - Streaming Chat
 
     static func stream(system: String, user: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
@@ -63,8 +63,6 @@ enum OpenAIService {
 
     // MARK: - Vision: Lab Report Extraction
 
-    /// Sends one or more lab-report images to GPT-4o Vision and returns a
-    /// dictionary of field-name → numeric value strings, e.g. ["HbA1c": "5.8"].
     static func extractLabValues(from images: [UIImage]) async throws -> [String: String] {
         guard !apiKey.isEmpty else { throw APIError.missingKey }
         guard !images.isEmpty else { return [:] }
@@ -75,10 +73,9 @@ enum OpenAIService {
         request.setValue("application/json",  forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 60
 
-        // Build the content array: one image block per page + one text block
         var contentBlocks: [[String: Any]] = []
 
-        for image in images.prefix(3) {           // max 3 pages to stay within token limits
+        for image in images.prefix(3) {
             let compressed = image.jpegData(compressionQuality: 0.6) ?? Data()
             let b64 = compressed.base64EncodedString()
             contentBlocks.append([
@@ -119,7 +116,66 @@ enum OpenAIService {
         return parseExtractedJSON(content)
     }
 
-    // MARK: - Private helpers
+    // MARK: - Vision: Food / Calorie Analysis
+
+    /// Sends a meal photo (and optional text description) to GPT-4o Vision and
+    /// returns an estimated calorie count as a string (e.g. "520").
+    static func analyzeFood(image: UIImage, description: String) async throws -> String {
+        guard !apiKey.isEmpty else { throw APIError.missingKey }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json",  forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 45
+
+        let compressed = image.jpegData(compressionQuality: 0.7) ?? Data()
+        let b64 = compressed.base64EncodedString()
+
+        let textPrompt = description.isEmpty
+            ? foodCaloriePrompt
+            : "The user describes this meal as: \"\(description)\". \(foodCaloriePrompt)"
+
+        let contentBlocks: [[String: Any]] = [
+            [
+                "type": "image_url",
+                "image_url": [
+                    "url": "data:image/jpeg;base64,\(b64)",
+                    "detail": "high",
+                ],
+            ],
+            [
+                "type": "text",
+                "text": textPrompt,
+            ],
+        ]
+
+        let body: [String: Any] = [
+            "model": "gpt-4o",
+            "max_tokens": 100,
+            "messages": [
+                ["role": "user", "content": contentBlocks],
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard http.statusCode == 200 else { throw APIError.httpError(http.statusCode) }
+
+        guard
+            let json    = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let choices = json["choices"] as? [[String: Any]],
+            let message = choices.first?["message"] as? [String: Any],
+            let content = message["content"] as? String
+        else { throw APIError.invalidResponse }
+
+        // Extract the numeric calories from the response
+        return parseCalories(content)
+    }
+
+    // MARK: - Private Helpers
 
     private static let extractionPrompt = """
     You are a precise medical lab report parser.
@@ -149,14 +205,24 @@ enum OpenAIService {
     Return ONLY the JSON object.
     """
 
+    private static let foodCaloriePrompt = """
+    Analyze this meal photo and estimate the total calorie content.
+
+    Identify every food item visible, estimate the portion size, and calculate calories.
+
+    Return ONLY a JSON object in this exact format:
+    {"calories": "520", "items": "grilled chicken 200g, brown rice 150g, mixed vegetables"}
+
+    The calories value must be a plain integer string (no units, no symbols).
+    Return ONLY the JSON object.
+    """
+
     private static func parseExtractedJSON(_ raw: String) -> [String: String] {
-        // Strip any markdown code fences the model might add
         let cleaned = raw
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Find the outermost {...}
         guard
             let start = cleaned.firstIndex(of: "{"),
             let end   = cleaned.lastIndex(of: "}"),
@@ -172,6 +238,27 @@ enum OpenAIService {
         else { return [:] }
 
         return values.compactMapValues { $0 as? String }
+    }
+
+    private static func parseCalories(_ raw: String) -> String {
+        let cleaned = raw
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard
+            let start = cleaned.firstIndex(of: "{"),
+            let end   = cleaned.lastIndex(of: "}"),
+            start <= end,
+            let data  = String(cleaned[start...end]).data(using: .utf8),
+            let json  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let cal   = json["calories"] as? String
+        else {
+            // Fallback: extract first number from the raw string
+            let digits = raw.components(separatedBy: .decimalDigits.inverted).joined()
+            return digits.isEmpty ? "0" : String(digits.prefix(4))
+        }
+        return cal
     }
 
     // MARK: - Errors

@@ -18,6 +18,8 @@
 		AA0000000000000000000069 /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000049 /* AnalysisView.swift */; };
 		AA0000000000000000000070 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000050 /* SettingsView.swift */; };
 		AA0000000000000000000072 /* LabExtractionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000073 /* LabExtractionReviewView.swift */; };
+		AA0000000000000000000074 /* TodayInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* TodayInputView.swift */; };
+		AA0000000000000000000076 /* DailyCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000077 /* DailyCheckView.swift */; };
 		AA0000000000000000000071 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000051 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +36,8 @@
 		AA0000000000000000000049 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000050 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000073 /* LabExtractionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabExtractionReviewView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000075 /* TodayInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayInputView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000077 /* DailyCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCheckView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000051 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -79,6 +83,8 @@
 				AA0000000000000000000049 /* AnalysisView.swift */,
 				AA0000000000000000000050 /* SettingsView.swift */,
 				AA0000000000000000000073 /* LabExtractionReviewView.swift */,
+				AA0000000000000000000075 /* TodayInputView.swift */,
+				AA0000000000000000000077 /* DailyCheckView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -171,6 +177,8 @@
 				AA0000000000000000000069 /* AnalysisView.swift in Sources */,
 				AA0000000000000000000070 /* SettingsView.swift in Sources */,
 				AA0000000000000000000072 /* LabExtractionReviewView.swift in Sources */,
+				AA0000000000000000000074 /* TodayInputView.swift in Sources */,
+				AA0000000000000000000076 /* DailyCheckView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
